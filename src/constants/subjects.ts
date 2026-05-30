@@ -1,10 +1,15 @@
 export const SUBJECT_OPTIONS = [
-  "English",
+  "English Literature",
+  "English Grammar",
   "Hindi",
   "Marathi",
-  "Mathematics",
-  "Science",
-  "Social Studies",
-  "Computer",
-  "GK"
+  "Algebra",
+  "Geometry",
+  "Reasoning",
+  "Biology",
+  "Physics",
+  "Chemistry",
+  "History",
+  "Geography",
+  "Computer"
 ] as const;
