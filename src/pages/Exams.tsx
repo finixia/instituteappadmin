@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
+import { getApiErrorMessage } from "../api/error";
 import { SUBJECT_OPTIONS } from "../constants/subjects";
 
 type Exam = { _id: string; title: string; subject: string; classLevel: number; date: string; maxMarks: number };
@@ -20,8 +21,8 @@ export function ExamsPage() {
     try {
       const res = await api.get("/exams");
       setExams(res.data.exams ?? []);
-    } catch (e: any) {
-      setError(e?.response?.data?.error?.message ?? e?.message ?? "Failed to load");
+    } catch (e: unknown) {
+      setError(getApiErrorMessage(e, "Failed to load exams."));
     } finally {
       setLoading(false);
     }
@@ -42,8 +43,8 @@ export function ExamsPage() {
         maxMarks: Number(create.maxMarks)
       });
       await load();
-    } catch (e: any) {
-      setError(e?.response?.data?.error?.message ?? e?.message ?? "Failed to create");
+    } catch (e: unknown) {
+      setError(getApiErrorMessage(e, "Failed to create exam."));
     }
   }
 
@@ -69,7 +70,15 @@ export function ExamsPage() {
               </option>
             ))}
           </select>
-          <input className="input" style={{ width: 160 }} value={create.date} onChange={(e) => setCreate((s) => ({ ...s, date: e.target.value }))} />
+          <input
+            className="input"
+            type="date"
+            style={{ width: 160 }}
+            value={create.date}
+            onChange={(e) => setCreate((s) => ({ ...s, date: e.target.value }))}
+            onFocus={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
+            onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
+          />
           <input className="input" style={{ width: 120 }} value={create.maxMarks} onChange={(e) => setCreate((s) => ({ ...s, maxMarks: e.target.value }))} />
           <button className="btn primary" disabled={!canCreate} onClick={onCreate}>
             Create

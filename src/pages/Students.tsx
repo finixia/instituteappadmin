@@ -10,6 +10,11 @@ type Student = {
   classLevel: number;
   subjects: string[];
   parentPhones: string[];
+  parentLogin?: {
+    id: string;
+    phone?: string;
+    email?: string;
+  } | null;
   isActive: boolean;
   admissionDate?: string;
 };
@@ -216,7 +221,7 @@ export function StudentsPage() {
                   <td className="muted">{(s.parentPhones ?? []).join(", ")}</td>
                   <td>
                     <button className="btn primary" onClick={() => setParentLoginFor(s)}>
-                      Create Parent Login
+                      {s.parentLogin ? "Update Credentials" : "Create Parent Login"}
                     </button>
                   </td>
                   <td>
@@ -231,9 +236,12 @@ export function StudentsPage() {
       </div>
 
       {parentLoginFor ? (
-        <CreateParentLoginDialog
+        <ParentLoginDialog
           student={parentLoginFor}
           onClose={() => setParentLoginFor(null)}
+          onSaved={async () => {
+            await load();
+          }}
         />
       ) : null}
 
@@ -612,37 +620,52 @@ function CreateStudentDialog({
   );
 }
 
-function CreateParentLoginDialog({
+function ParentLoginDialog({
   student,
-  onClose
+  onClose,
+  onSaved
 }: {
   student: Student;
   onClose: () => void;
+  onSaved: () => Promise<void>;
 }) {
-  const [email, setEmail] = useState("");
+  const isUpdate = Boolean(student.parentLogin);
+  const [phone, setPhone] = useState(student.parentLogin?.phone ?? student.parentPhones?.[0] ?? "");
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const canSubmit = useMemo(() => email.includes("@") && password.length >= 8 && !saving, [email, password, saving]);
+  const canSubmit = useMemo(() => {
+    const hasPhone = phone.replace(/\D/g, "").length >= 6;
+    const hasValidPassword = password.length >= 8;
+    const passwordOk = isUpdate ? password.length === 0 || hasValidPassword : hasValidPassword;
+    return hasPhone && passwordOk && !saving;
+  }, [isUpdate, phone, password, saving]);
 
-  async function onCreate() {
+  async function onSave() {
     setError(null);
     setSuccess(null);
     setSaving(true);
     try {
-      const res = await api.post("/auth/users", {
-        email,
-        password,
-        role: "PARENT",
-        linkedStudentIds: [student._id]
-      });
-      setSuccess(`Created parent user: ${res.data.user?.email ?? email}`);
-      setEmail("");
+      if (student.parentLogin) {
+        const payload: { phone: string; password?: string } = { phone };
+        if (password) payload.password = password;
+        const res = await api.patch(`/auth/users/${student.parentLogin.id}/credentials`, payload);
+        setSuccess(`Updated parent credentials: ${res.data.user?.phone ?? phone}`);
+      } else {
+        const res = await api.post("/auth/users", {
+          phone,
+          password,
+          role: "PARENT",
+          linkedStudentIds: [student._id]
+        });
+        setSuccess(`Created parent user: ${res.data.user?.phone ?? phone}`);
+      }
       setPassword("");
+      await onSaved();
     } catch (e: any) {
-      setError(e?.response?.data?.error?.message ?? e?.message ?? "Failed to create parent login");
+      setError(e?.response?.data?.error?.message ?? e?.message ?? "Failed to save parent credentials");
     } finally {
       setSaving(false);
     }
@@ -669,7 +692,7 @@ function CreateParentLoginDialog({
       <div className="panel" style={{ width: "min(720px, 100%)", padding: 16 }}>
         <div className="row" style={{ justifyContent: "space-between" }}>
           <div>
-            <div style={{ fontWeight: 900, fontSize: 18 }}>Create Parent Login</div>
+            <div style={{ fontWeight: 900, fontSize: 18 }}>{isUpdate ? "Update Parent Credentials" : "Create Parent Login"}</div>
             <div className="muted" style={{ marginTop: 4 }}>
               Student: {student.firstName} {student.lastName ?? ""} · Class {student.classLevel}
             </div>
@@ -682,19 +705,19 @@ function CreateParentLoginDialog({
         <div style={{ marginTop: 14 }} className="row">
           <div style={{ flex: 1 }}>
             <div className="muted" style={{ marginBottom: 6 }}>
-              Parent email
+              Parent phone
             </div>
-            <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="parent@example.com" autoComplete="email" />
+            <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="9999999999" autoComplete="tel" />
           </div>
           <div style={{ flex: 1 }}>
             <div className="muted" style={{ marginBottom: 6 }}>
-              Temporary password (min 8 chars)
+              {isUpdate ? "New password (optional, min 8 chars)" : "Temporary password (min 8 chars)"}
             </div>
             <input className="input" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="e.g. parent12345" autoComplete="new-password" />
           </div>
           <div style={{ alignSelf: "flex-end" }}>
-            <button className="btn primary" disabled={!canSubmit} onClick={onCreate}>
-              {saving ? "Creating..." : "Create"}
+            <button className="btn primary" disabled={!canSubmit} onClick={onSave}>
+              {saving ? "Saving..." : isUpdate ? "Update" : "Create"}
             </button>
           </div>
         </div>
@@ -706,7 +729,7 @@ function CreateParentLoginDialog({
         ) : null}
         {success ? (
           <div className="muted" style={{ marginTop: 10 }}>
-            {success}. Share the email/password with the parent to log in on the mobile app.
+            {success}. Share the phone/password with the parent to log in on the mobile app.
           </div>
         ) : null}
       </div>

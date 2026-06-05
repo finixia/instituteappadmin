@@ -16,6 +16,7 @@ export function ExamMarksPage() {
   const [viewResults, setViewResults] = useState(false);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [savedIds, setSavedIds] = useState<Record<string, boolean>>({});
   const [savingPublish, setSavingPublish] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -35,6 +36,7 @@ export function ExamMarksPage() {
         const nextStudents: Student[] = studentsRes.data.students ?? [];
         const nextScores: ExamScore[] = scoresRes.data.scores ?? [];
         const scoreMap = new Map(nextScores.map((score) => [score.studentId, score]));
+        const nextSavedIds = Object.fromEntries(nextScores.map((score) => [score.studentId, true]));
 
         setExam(nextExam);
         setStudents(nextStudents);
@@ -52,6 +54,7 @@ export function ExamMarksPage() {
             })
           )
         );
+        setSavedIds(nextSavedIds);
       } catch (e: any) {
         setError(e?.response?.data?.error?.message ?? e?.message ?? "Failed to load exam roster");
       } finally {
@@ -68,6 +71,7 @@ export function ExamMarksPage() {
         ...patch
       }
     }));
+    setSavedIds((current) => ({ ...current, [studentId]: false }));
   }
 
   async function saveStudent(studentId: string) {
@@ -84,6 +88,7 @@ export function ExamMarksPage() {
         marks: entry.isAbsent ? 0 : Number(entry.marks || 0),
         isAbsent: entry.isAbsent
       });
+      setSavedIds((current) => ({ ...current, [studentId]: true }));
       setNotice("Marks saved successfully.");
     } catch (e: any) {
       setError(e?.response?.data?.error?.message ?? e?.message ?? "Failed to save marks");
@@ -212,6 +217,7 @@ export function ExamMarksPage() {
                   const entry = scores[student._id] ?? { marks: "", isAbsent: false };
                   const marks = Number(entry.marks || 0);
                   const percent = exam && !entry.isAbsent ? Math.round((marks / exam.maxMarks) * 100) : 0;
+                  const isSaved = savedIds[student._id] === true;
 
                   return (
                     <tr key={student._id}>
@@ -241,11 +247,11 @@ export function ExamMarksPage() {
                       <td className="muted">{entry.isAbsent ? "Absent" : `${percent}%`}</td>
                       <td>
                         <button
-                          className="btn primary"
+                          className={isSaved ? "btn" : "btn primary"}
                           disabled={savingId === student._id || (!entry.isAbsent && Number(entry.marks || -1) > exam.maxMarks)}
                           onClick={() => saveStudent(student._id)}
                         >
-                          {savingId === student._id ? "Saving..." : "Save"}
+                          {savingId === student._id ? "Saving..." : isSaved ? "Saved" : "Save"}
                         </button>
                       </td>
                     </tr>
@@ -259,4 +265,3 @@ export function ExamMarksPage() {
     </div>
   );
 }
-
