@@ -4,8 +4,15 @@ import { api } from "../api/client";
 type Student = { _id: string; firstName: string; lastName?: string; classLevel: number };
 type Plan = { _id: string; name: string; totalAmount: number };
 
-type FeeInstallment = { label: string; dueDate: string; amount: number; status: string };
+type FeeInstallment = { label: string; dueDate: string; amount: number; status: string; paidAmount?: number; paymentMode?: string };
 type Account = { _id: string; studentId: string; planId: string; startDate: string; installments?: FeeInstallment[] };
+
+type InstallmentEdit = {
+  status: string;
+  amount: number;
+  paidAmount: number;
+  paymentMode: string;
+};
 
 export function FeeAccountsPage() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -15,7 +22,7 @@ export function FeeAccountsPage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [installmentModalAccountId, setInstallmentModalAccountId] = useState<string | null>(null);
   const [selectedInstallments, setSelectedInstallments] = useState<Record<number, boolean>>({});
-  const [paymentAmounts, setPaymentAmounts] = useState<Record<number, number>>({});
+  const [installmentEdits, setInstallmentEdits] = useState<Record<number, InstallmentEdit>>({});
 
   const today = new Date();
   const yyyy = today.getFullYear();
@@ -91,17 +98,31 @@ export function FeeAccountsPage() {
     setStatusMessage(null);
 
     const account = accounts.find((acc) => acc._id === accountId);
-    const initialAmounts: Record<number, number> = {};
+    const initialEdits: Record<number, InstallmentEdit> = {};
     account?.installments?.forEach((inst, idx) => {
-      initialAmounts[idx] = inst.amount;
+      initialEdits[idx] = {
+        status: inst.status,
+        amount: inst.amount,
+        paidAmount: inst.paidAmount ?? inst.amount,
+        paymentMode: inst.paymentMode ?? "CASH"
+      };
     });
-    setPaymentAmounts(initialAmounts);
+    setInstallmentEdits(initialEdits);
   }
 
   function closeInstallmentModal() {
     setInstallmentModalAccountId(null);
     setSelectedInstallments({});
-    setPaymentAmounts({});
+    setInstallmentEdits({});
+  }
+
+  function getInstallmentEdit(idx: number, inst: FeeInstallment): InstallmentEdit {
+    return installmentEdits[idx] ?? {
+      status: inst.status,
+      amount: inst.amount,
+      paidAmount: inst.paidAmount ?? inst.amount,
+      paymentMode: inst.paymentMode ?? "CASH"
+    };
   }
 
   async function onSaveInstallments() {
@@ -129,19 +150,20 @@ export function FeeAccountsPage() {
       for (const index of selectedIndexes) {
         const inst = account.installments?.[index];
         if (!inst) continue;
-        const paidAmount = Number(paymentAmounts[index] ?? inst.amount);
-        if (Number.isNaN(paidAmount) || paidAmount < 0) {
-          throw new Error("Invalid payment amount for selected installment.");
+        const edit = getInstallmentEdit(index, inst);
+        if (edit.amount < 0 || edit.paidAmount < 0) {
+          throw new Error("Invalid installment amount.");
         }
 
-        await api.post(`/fees/accounts/${account._id}/pay`, {
-          installmentIndex: index,
-          paidAmount,
-          paymentMode: "CASH",
+        await api.put(`/fees/accounts/${account._id}/installments/${index}`, {
+          status: edit.status,
+          amount: edit.amount,
+          paidAmount: edit.status === "PAID" ? edit.paidAmount : undefined,
+          paymentMode: edit.status === "PAID" ? edit.paymentMode : edit.paymentMode,
           reference: "Admin entry"
         });
       }
-      setStatusMessage("Installment payment entries saved.");
+      setStatusMessage("Installment entries updated.");
       closeInstallmentModal();
       const aRes = await api.get("/fees/accounts");
       setAccounts(aRes.data.accounts ?? []);
@@ -252,44 +274,102 @@ export function FeeAccountsPage() {
                     <th></th>
                     <th>Label</th>
                     <th>Due date</th>
-                    <th>Payment amount</th>
+                    <th>Amount</th>
+                    <th>Payment mode</th>
                     <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {activeInstallmentAccount?.installments?.map((inst, idx) => (
-                    <tr key={idx}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={Boolean(selectedInstallments[idx])}
-                          onChange={(e) => setSelectedInstallments((s) => ({ ...s, [idx]: e.target.checked }))}
-                          disabled={inst.status === 'PAID'}
-                        />
-                      </td>
-                      <td>{inst.label}</td>
-                      <td>{inst.dueDate}</td>
-                      <td>
-                        {inst.status === 'PAID' ? (
-                          <>₹{inst.paidAmount ?? inst.amount}</>
-                        ) : (
+                  {activeInstallmentAccount?.installments?.map((inst, idx) => {
+                    const edit = getInstallmentEdit(idx, inst);
+                    return (
+                      <tr key={idx}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(selectedInstallments[idx])}
+                            onChange={(e) => setSelectedInstallments((s) => ({ ...s, [idx]: e.target.checked }))}
+                          />
+                        </td>
+                        <td>{inst.label}</td>
+                        <td>{inst.dueDate}</td>
+                        <td>
                           <input
                             className="input"
                             type="number"
                             min={0}
                             style={{ width: 120 }}
-                            value={paymentAmounts[idx] ?? inst.amount}
+                            value={edit.amount}
                             onChange={(e) => {
                               const value = Number(e.target.value || 0);
-                              setPaymentAmounts((s) => ({ ...s, [idx]: value }));
+                              setInstallmentEdits((s) => ({
+                                ...s,
+                                [idx]: { ...edit, amount: value }
+                              }));
                               setSelectedInstallments((s) => ({ ...s, [idx]: true }));
                             }}
                           />
-                        )}
-                      </td>
-                      <td className="muted">{inst.status}</td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <select
+                              className="select"
+                              style={{ width: 140 }}
+                              value={edit.paymentMode}
+                              onChange={(e) => {
+                                setInstallmentEdits((s) => ({
+                                  ...s,
+                                  [idx]: { ...edit, paymentMode: e.target.value }
+                                }));
+                                setSelectedInstallments((s) => ({ ...s, [idx]: true }));
+                              }}
+                            >
+                              <option value="CASH">Cash</option>
+                              <option value="UPI">UPI</option>
+                              <option value="CARD">Card</option>
+                              <option value="BANK_TRANSFER">Bank transfer</option>
+                              <option value="OTHER">Other</option>
+                            </select>
+                            {edit.status === 'PAID' ? (
+                              <input
+                                className="input"
+                                type="number"
+                                min={0}
+                                style={{ width: 100 }}
+                                value={edit.paidAmount}
+                                onChange={(e) => {
+                                  const value = Number(e.target.value || 0);
+                                  setInstallmentEdits((s) => ({
+                                    ...s,
+                                    [idx]: { ...edit, paidAmount: value }
+                                  }));
+                                  setSelectedInstallments((s) => ({ ...s, [idx]: true }));
+                                }}
+                              />
+                            ) : null}
+                          </div>
+                        </td>
+                        <td>
+                          <select
+                            className="select"
+                            style={{ width: 120 }}
+                            value={edit.status}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setInstallmentEdits((s) => ({
+                                ...s,
+                                [idx]: { ...edit, status: value }
+                              }));
+                              setSelectedInstallments((s) => ({ ...s, [idx]: true }));
+                            }}
+                          >
+                            <option value="DUE">DUE</option>
+                            <option value="PAID">PAID</option>
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

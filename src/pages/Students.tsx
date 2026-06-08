@@ -39,7 +39,7 @@ export function StudentsPage() {
   const [q, setQ] = useState("");
   const [classLevel, setClassLevel] = useState<string>("");
 
-  const [create, setCreate] = useState<StudentFormState>({ firstName: "", lastName: "", classLevel: "8", subjects: ["Mathematics"], parentPhones: "9999999999", admissionDate: "" });
+  const [create, setCreate] = useState<StudentFormState>({ firstName: "", lastName: "", classLevel: "8", subjects: [], parentPhones: "9999999999", admissionDate: "" });
   const [faceImage, setFaceImage] = useState<string | null>(null);
   const canCreate = useMemo(() => create.firstName.trim().length > 0 && create.parentPhones.trim().length > 0 && create.subjects.length > 0, [create]);
 
@@ -303,7 +303,7 @@ function CreateStudentDialog({
         firstName: student.firstName,
         lastName: student.lastName || "",
         classLevel: String(student.classLevel),
-        subjects: student.subjects?.length ? student.subjects : ["Mathematics"],
+        subjects: student.subjects?.length ? student.subjects : [],
         parentPhones: (student.parentPhones || []).map(p => p).join(", "),
         admissionDate: student.admissionDate ? new Date(student.admissionDate).toISOString().slice(0, 10) : ""
       });
