@@ -4,16 +4,28 @@ import { api } from "../api/client";
 import { getApiErrorMessage } from "../api/error";
 import { SUBJECT_OPTIONS } from "../constants/subjects";
 
-type Exam = { _id: string; title: string; subject: string; classLevel: number; date: string; maxMarks: number };
-type ExamFormState = { title: string; subject: string; classLevel: string; date: string; maxMarks: string };
+type Exam = { _id: string; title: string; subject: string; classLevel: number; date: string; maxMarks: number; passingMarks: number };
+type ExamFormState = { title: string; subject: string; classLevel: string; date: string; maxMarks: string; passingMarks: string };
 
 export function ExamsPage() {
   const [exams, setExams] = useState<Exam[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [create, setCreate] = useState<ExamFormState>({ title: "Unit Test", subject: SUBJECT_OPTIONS[0], classLevel: "8", date: new Date().toISOString().slice(0, 10), maxMarks: "50" });
-  const canCreate = useMemo(() => create.title.trim().length > 0 && create.subject.trim().length > 0, [create]);
+  const [create, setCreate] = useState<ExamFormState>({ title: "Unit Test", subject: SUBJECT_OPTIONS[0], classLevel: "8", date: new Date().toISOString().slice(0, 10), maxMarks: "", passingMarks: "" });
+  const canCreate = useMemo(() => {
+    const max = Number(create.maxMarks);
+    const passing = Number(create.passingMarks);
+    return (
+      create.title.trim().length > 0 &&
+      create.subject.trim().length > 0 &&
+      Number.isInteger(max) &&
+      max > 0 &&
+      Number.isInteger(passing) &&
+      passing >= 0 &&
+      passing <= max
+    );
+  }, [create]);
 
   async function load() {
     setLoading(true);
@@ -40,7 +52,8 @@ export function ExamsPage() {
         subject: create.subject,
         classLevel: Number(create.classLevel),
         date: create.date,
-        maxMarks: Number(create.maxMarks)
+        maxMarks: Number(create.maxMarks),
+        passingMarks: Number(create.passingMarks)
       });
       await load();
     } catch (e: unknown) {
@@ -79,7 +92,8 @@ export function ExamsPage() {
             onFocus={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
             onClick={(e) => (e.currentTarget as HTMLInputElement).showPicker?.()}
           />
-          <input className="input" style={{ width: 120 }} value={create.maxMarks} onChange={(e) => setCreate((s) => ({ ...s, maxMarks: e.target.value }))} />
+          <input className="input" style={{ width: 120 }} value={create.maxMarks} onChange={(e) => setCreate((s) => ({ ...s, maxMarks: e.target.value }))} placeholder="Max marks" />
+          <input className="input" style={{ width: 120 }} value={create.passingMarks} onChange={(e) => setCreate((s) => ({ ...s, passingMarks: e.target.value }))} placeholder="Passing marks" />
           <button className="btn primary" disabled={!canCreate} onClick={onCreate}>
             Create
           </button>
@@ -108,6 +122,7 @@ export function ExamsPage() {
                 <th>Class</th>
                 <th>Date</th>
                 <th>Max</th>
+                <th>Pass</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -119,6 +134,7 @@ export function ExamsPage() {
                   <td className="muted">{e.classLevel}</td>
                   <td className="muted">{e.date}</td>
                   <td className="muted">{e.maxMarks}</td>
+                  <td className="muted">{e.passingMarks}</td>
                   <td>
                     <Link className="btn primary" to={`/exams/${e._id}/marks`}>
                       Enter marks
