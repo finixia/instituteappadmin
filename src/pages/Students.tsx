@@ -191,7 +191,7 @@ export function StudentsPage() {
               {students.map((s) => (
                 <tr key={s._id}>
                   <td>
-                    <Link to={`/students/${s._id}`} style={{ fontWeight: 800 }}>
+                    <Link to={`/admin/students/${s._id}`} style={{ fontWeight: 800 }}>
                       {s.firstName} {s.lastName ?? ""}
                     </Link>
                   </td>

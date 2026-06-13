@@ -136,7 +136,7 @@ export function ExamsPage() {
                   <td className="muted">{e.maxMarks}</td>
                   <td className="muted">{e.passingMarks}</td>
                   <td>
-                    <Link className="btn primary" to={`/exams/${e._id}/marks`}>
+                    <Link className="btn primary" to={`/admin/exams/${e._id}/marks`}>
                       Enter marks
                     </Link>
                   </td>

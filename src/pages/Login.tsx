@@ -53,8 +53,7 @@ export function LoginPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
           <div style={{ width: 46, height: 46, borderRadius: 10, background: 'linear-gradient(180deg,#2f5fd7,#1d4ed8)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 900 }}>IA</div>
           <div>
-            <h2 style={{ margin: 0 }}>Institute Admin</h2>
-            <div className="muted" style={{ fontSize: 13 }}>Sign in to your admin panel</div>
+            <h2 style={{ margin: 0 }}>Login</h2>
           </div>
         </div>
 

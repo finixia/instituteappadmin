@@ -17,7 +17,7 @@ export function AttendancePage() {
       </div>
 
       <div className="row" style={{ gap: 24, flexWrap: "wrap" }}>
-        <div className="panel" style={{ flex: 1, minWidth: 300, padding: 24, cursor: "pointer" }} onClick={() => navigate("/attendance/records")}>
+        <div className="panel" style={{ flex: 1, minWidth: 300, padding: 24, cursor: "pointer" }} onClick={() => navigate("/admin/attendance/records")}>
           <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 8 }}>📊 Attendance Records</div>
           <div className="muted">View and manage historical attendance data for all classes.</div>
         </div>
@@ -38,7 +38,7 @@ export function AttendancePage() {
           setSelectedMode={setSelectedMode}
           onClose={() => setStartSessionOpen(false)}
           onStart={() => {
-            navigate(`/attendance/start?class=${selectedClass}&subject=${encodeURIComponent(selectedSubject)}&mode=${selectedMode}`);
+            navigate(`/admin/attendance/start?class=${selectedClass}&subject=${encodeURIComponent(selectedSubject)}&mode=${selectedMode}`);
             setStartSessionOpen(false);
           }}
         />

@@ -151,7 +151,7 @@ export function ExamMarksPage() {
           <button className="btn primary" disabled={!exam || savingPublish} onClick={publishExam}>
             {savingPublish ? "Publishing..." : exam?.publishedAt ? "Republish" : "Publish Results"}
           </button>
-          <Link className="btn" to="/exams">
+          <Link className="btn" to="/admin/exams">
             Back to Exams
           </Link>
         </div>

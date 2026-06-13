@@ -3,12 +3,13 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuthStore } from "../store/auth";
 
 const navItems = [
-  { to: "/", label: "Dashboard", icon: "DB" },
-  { to: "/students", label: "Students", icon: "ST" },
-  { to: "/attendance", label: "Attendance", icon: "AT" },
-  { to: "/exams", label: "Exams", icon: "EX" },
-  { to: "/fees/plans", label: "Fee Plans", icon: "FP" },
-  { to: "/fees/accounts", label: "Fee Accounts", icon: "FA" }
+  { to: "/admin", label: "Dashboard", icon: "DB" },
+  { to: "/admin/students", label: "Students", icon: "ST" },
+  { to: "/admin/attendance", label: "Attendance", icon: "AT" },
+  { to: "/admin/exams", label: "Exams", icon: "EX" },
+  { to: "/admin/fees/plans", label: "Fee Plans", icon: "FP" },
+  { to: "/admin/fees/accounts", label: "Fee Accounts", icon: "FA" },
+  { to: "/admin/settings", label: "Settings", icon: "SE" }
 ];
 
 export function Layout() {
@@ -18,7 +19,7 @@ export function Layout() {
   const location = useLocation();
 
   const currentItem =
-    navItems.find((item) => (item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to))) ?? navItems[0];
+    navItems.find((item) => (item.to === "/admin" ? location.pathname === "/admin" : location.pathname.startsWith(item.to))) ?? navItems[0];
 
   return (
     <div className="app-shell">
