@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
 
 type Student = { _id: string; firstName: string; lastName?: string; classLevel: number };
-type Plan = { _id: string; name: string; totalAmount: number };
+type Plan = { _id: string; name: string; classLevel: number; totalAmount: number };
 
 type FeeInstallment = { label: string; dueDate: string; amount: number; status: string; paidAmount?: number; paymentMode?: string };
 type Account = { _id: string; studentId: string; planId: string; startDate: string; installments?: FeeInstallment[] };
+const CLASS_LEVELS = [6, 7, 8, 9, 10];
 
 type InstallmentEdit = {
   status: string;
@@ -13,6 +14,10 @@ type InstallmentEdit = {
   paidAmount: number;
   paymentMode: string;
 };
+
+function formatCurrency(amount: number) {
+  return `₹${amount.toLocaleString("en-IN")}`;
+}
 
 export function FeeAccountsPage() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -30,10 +35,10 @@ export function FeeAccountsPage() {
   const dd = String(today.getDate()).padStart(2, "0");
   const todayStr = `${yyyy}-${mm}-${dd}`;
 
-  const [create, setCreate] = useState({ studentId: "", planId: "", startDate: todayStr });
+  const [create, setCreate] = useState({ classLevel: "", studentId: "", planId: "", startDate: todayStr });
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const dateInputRef = useRef<HTMLInputElement | null>(null);
-  const canCreate = useMemo(() => create.studentId.length > 0 && create.planId.length > 0, [create]);
+  const canCreate = useMemo(() => create.classLevel.length > 0 && create.studentId.length > 0 && create.planId.length > 0, [create]);
 
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState<string>("");
@@ -50,6 +55,16 @@ export function FeeAccountsPage() {
       }
     })();
   }, []);
+
+  const studentsForCreateClass = useMemo(() => {
+    if (!create.classLevel) return [];
+    return students.filter((student) => String(student.classLevel) === create.classLevel);
+  }, [create.classLevel, students]);
+
+  const plansForCreateClass = useMemo(() => {
+    if (!create.classLevel) return [];
+    return plans.filter((plan) => String(plan.classLevel) === create.classLevel);
+  }, [create.classLevel, plans]);
 
   async function onCreate() {
     setError(null);
@@ -79,16 +94,38 @@ export function FeeAccountsPage() {
   }
 
   function onEditAccount(acc: Account) {
+    const student = students.find((s) => s._id === String(acc.studentId));
+    const plan = plans.find((p) => p._id === String(acc.planId));
     setEditingAccountId(acc._id);
-    setCreate({ studentId: acc.studentId, planId: acc.planId, startDate: acc.startDate });
+    setCreate({ classLevel: String(student?.classLevel ?? plan?.classLevel ?? ""), studentId: acc.studentId, planId: acc.planId, startDate: acc.startDate });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function onCancelEdit() {
     setEditingAccountId(null);
-    setCreate({ studentId: '', planId: '', startDate: todayStr });
+    setCreate({ classLevel: '', studentId: '', planId: '', startDate: todayStr });
     setStatusMessage(null);
     setError(null);
+  }
+
+  async function onDeleteAccount(acc: Account & { studentName: string; planName: string }) {
+    const paidCount = (acc.installments ?? []).filter((inst) => inst.status === "PAID").length;
+    const message = paidCount > 0
+      ? `Delete fee account for ${acc.studentName}? This account has ${paidCount} paid installment entr${paidCount === 1 ? "y" : "ies"}.`
+      : `Delete fee account for ${acc.studentName}?`;
+    if (!confirm(message)) return;
+
+    setError(null);
+    setStatusMessage(null);
+    try {
+      await api.delete(`/fees/accounts/${acc._id}`);
+      if (editingAccountId === acc._id) onCancelEdit();
+      const aRes = await api.get("/fees/accounts");
+      setAccounts(aRes.data.accounts ?? []);
+      setStatusMessage("Fee account deleted.");
+    } catch (e: any) {
+      setError(e?.response?.data?.error?.message ?? e?.message ?? "Failed to delete fee account");
+    }
   }
 
   function openInstallmentModal(accountId: string) {
@@ -209,17 +246,37 @@ export function FeeAccountsPage() {
       <div className="panel" style={{ padding: 16 }}>
         <div style={{ fontWeight: 900, marginBottom: 10 }}>Create fee account</div>
         <div className="row" style={{ flexWrap: "wrap" }}>
-          <select className="select" style={{ flex: 1, minWidth: 260 }} value={create.studentId} onChange={(e) => setCreate((s) => ({ ...s, studentId: e.target.value }))}>
-            <option value="">Select student</option>
-            {students.map((s) => (
-              <option key={s._id} value={s._id}>
-                {s.firstName} {s.lastName ?? ""} (Class {s.classLevel})
+          <select
+            className="select"
+            style={{ flex: 1, minWidth: 180 }}
+            value={create.classLevel}
+            onChange={(e) => setCreate((s) => ({ ...s, classLevel: e.target.value, studentId: "", planId: "" }))}
+            disabled={Boolean(editingAccountId)}
+          >
+            <option value="">Select class</option>
+            {CLASS_LEVELS.map((classLevel) => (
+              <option key={classLevel} value={classLevel}>
+                Class {classLevel}
               </option>
             ))}
           </select>
-          <select className="select" style={{ flex: 1, minWidth: 260 }} value={create.planId} onChange={(e) => setCreate((s) => ({ ...s, planId: e.target.value }))}>
-            <option value="">Select fee plan</option>
-            {plans.map((p) => (
+          <select
+            className="select"
+            style={{ flex: 1, minWidth: 260 }}
+            value={create.studentId}
+            onChange={(e) => setCreate((s) => ({ ...s, studentId: e.target.value }))}
+            disabled={!create.classLevel || Boolean(editingAccountId)}
+          >
+            <option value="">{create.classLevel ? "Select student" : "Select class first"}</option>
+            {studentsForCreateClass.map((s) => (
+              <option key={s._id} value={s._id}>
+                {s.firstName} {s.lastName ?? ""}
+              </option>
+            ))}
+          </select>
+          <select className="select" style={{ flex: 1, minWidth: 260 }} value={create.planId} onChange={(e) => setCreate((s) => ({ ...s, planId: e.target.value }))} disabled={!create.classLevel}>
+            <option value="">{create.classLevel ? "Select fee plan" : "Select class first"}</option>
+            {plansForCreateClass.map((p) => (
               <option key={p._id} value={p._id}>
                 {p.name} (₹{p.totalAmount})
               </option>
@@ -399,36 +456,100 @@ export function FeeAccountsPage() {
         {filteredAccounts.length === 0 ? (
           <div className="muted">No accounts found.</div>
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Student</th>
-                <th>Class</th>
-                <th>Plan</th>
-                <th>Start</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredAccounts.map((a) => (
-                <tr key={a._id}>
-                  <td style={{ fontWeight: 800 }}>{(a as any).studentName}</td>
-                  <td className="muted">{(a as any).classLevel}</td>
-                  <td className="muted">{(a as any).planName}</td>
-                  <td className="muted">{a.startDate}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                      <button className="btn" onClick={() => onEditAccount(a)}>Edit</button>
-                      <button className="btn" onClick={() => openInstallmentModal(a._id)}>Add Installment Entry</button>
-                    </div>
-                  </td>
+          <div style={{ overflowX: "auto" }}>
+            <table className="table" style={{ minWidth: 980 }}>
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Class</th>
+                  <th>Plan</th>
+                  <th>Start</th>
+                  <th>Payment details</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredAccounts.map((a) => {
+                  const installments = a.installments ?? [];
+                  const totalAmount = installments.reduce((sum, inst) => sum + (Number(inst.amount) || 0), 0);
+                  const paidAmount = installments.reduce((sum, inst) => {
+                    if (inst.status !== "PAID") return sum;
+                    return sum + (Number(inst.paidAmount ?? inst.amount) || 0);
+                  }, 0);
+                  const dueAmount = Math.max(totalAmount - paidAmount, 0);
+                  const paidCount = installments.filter((inst) => inst.status === "PAID").length;
+
+                  return (
+                    <tr key={a._id} style={{ verticalAlign: "top" }}>
+                      <td style={{ fontWeight: 800 }}>{(a as any).studentName}</td>
+                      <td className="muted">{(a as any).classLevel}</td>
+                      <td className="muted">{(a as any).planName}</td>
+                      <td className="muted">{a.startDate}</td>
+                      <td style={{ minWidth: 420 }}>
+                        {installments.length === 0 ? (
+                          <div className="muted">No installments generated.</div>
+                        ) : (
+                          <div>
+                            <div className="row" style={{ gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                              <span className="muted" style={{ fontWeight: 800 }}>
+                                Paid {formatCurrency(paidAmount)}
+                              </span>
+                              <span className="muted">Due {formatCurrency(dueAmount)}</span>
+                              <span className="muted">
+                                {paidCount}/{installments.length} installments paid
+                              </span>
+                            </div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              {installments.map((inst, idx) => {
+                                const isPaid = inst.status === "PAID";
+                                const paidValue = Number(inst.paidAmount ?? inst.amount) || 0;
+                                return (
+                                  <div
+                                    key={`${a._id}-${idx}`}
+                                    style={{
+                                      display: "grid",
+                                      gridTemplateColumns: "minmax(120px, 1.2fr) minmax(96px, 0.8fr) minmax(96px, 0.8fr) minmax(90px, 0.7fr)",
+                                      gap: 8,
+                                      alignItems: "center",
+                                      padding: "8px 10px",
+                                      border: "1px solid #e6eaf2",
+                                      borderRadius: 12,
+                                      background: isPaid ? "#f0fdf4" : "#fff7ed"
+                                    }}
+                                  >
+                                    <div>
+                                      <div style={{ fontWeight: 800 }}>{inst.label}</div>
+                                      <div className="muted" style={{ fontSize: 12 }}>
+                                        Due {inst.dueDate}
+                                      </div>
+                                    </div>
+                                    <div className="muted">{formatCurrency(Number(inst.amount) || 0)}</div>
+                                    <div className="muted">
+                                      {isPaid ? `${formatCurrency(paidValue)} · ${inst.paymentMode ?? "—"}` : "Not paid"}
+                                    </div>
+                                    <div style={{ fontWeight: 900, color: isPaid ? "#15803d" : "#b45309" }}>{inst.status}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: "wrap" }}>
+                          <button className="btn" onClick={() => onEditAccount(a)}>Edit</button>
+                          <button className="btn" onClick={() => openInstallmentModal(a._id)}>Add Installment Entry</button>
+                          <button className="btn danger" onClick={() => onDeleteAccount(a)}>Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
   );
 }
-

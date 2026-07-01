@@ -2,16 +2,18 @@ import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
 
-type Exam = { _id: string; title: string; subject: string; classLevel: number; date: string; maxMarks: number; publishedAt?: string | null };
+type ExamComponent = { subject: string; maxMarks: number; passingMarks: number };
+type Exam = { _id: string; title: string; examType?: "SINGLE" | "ENTRANCE"; subject: string; components?: ExamComponent[]; classLevel: number; date: string; maxMarks: number; publishedAt?: string | null };
 type Student = { _id: string; firstName: string; lastName?: string; classLevel: number };
-type ExamScore = { _id: string; examId: string; studentId: string; marks: number; isAbsent: boolean };
+type ExamScore = { _id: string; examId: string; studentId: string; marks: number; componentMarks?: Array<{ subject: string; marks: number }>; isAbsent: boolean };
 type ExamResultRow = { student: Student | null; rank: number | null; marks: number | null; isAbsent: boolean; percent: number };
+type ScoreEntry = { marks: string; componentMarks: Record<string, string>; isAbsent: boolean };
 
 export function ExamMarksPage() {
   const { examId } = useParams();
   const [exam, setExam] = useState<Exam | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
-  const [scores, setScores] = useState<Record<string, { marks: string; isAbsent: boolean }>>({});
+  const [scores, setScores] = useState<Record<string, ScoreEntry>>({});
   const [results, setResults] = useState<ExamResultRow[]>([]);
   const [viewResults, setViewResults] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -44,10 +46,17 @@ export function ExamMarksPage() {
           Object.fromEntries(
             nextStudents.map((student) => {
               const score = scoreMap.get(student._id);
+              const componentMarks = Object.fromEntries(
+                (nextExam.components ?? []).map((component) => {
+                  const saved = score?.componentMarks?.find((entry) => entry.subject === component.subject);
+                  return [component.subject, saved ? String(saved.marks) : ""];
+                })
+              );
               return [
                 student._id,
                 {
                   marks: score ? String(score.marks) : "",
+                  componentMarks,
                   isAbsent: score?.isAbsent ?? false
                 }
               ];
@@ -63,12 +72,16 @@ export function ExamMarksPage() {
     })();
   }, [examId]);
 
-  function updateScore(studentId: string, patch: Partial<{ marks: string; isAbsent: boolean }>) {
+  function updateScore(studentId: string, patch: Partial<ScoreEntry>) {
     setScores((current) => ({
       ...current,
       [studentId]: {
         ...current[studentId],
-        ...patch
+        ...patch,
+        componentMarks: {
+          ...(current[studentId]?.componentMarks ?? {}),
+          ...(patch.componentMarks ?? {})
+        }
       }
     }));
     setSavedIds((current) => ({ ...current, [studentId]: false }));
@@ -83,9 +96,20 @@ export function ExamMarksPage() {
     setError(null);
     setNotice(null);
     try {
+      const components = exam.components ?? [];
+      const componentMarks = exam.examType === "ENTRANCE"
+        ? components.map((component) => ({
+          subject: component.subject,
+          marks: entry.isAbsent ? 0 : Number(entry.componentMarks[component.subject] || 0)
+        }))
+        : [];
+      const totalMarks = exam.examType === "ENTRANCE"
+        ? componentMarks.reduce((sum, component) => sum + component.marks, 0)
+        : Number(entry.marks || 0);
       await api.put(`/exams/${exam._id}/scores`, {
         studentId,
-        marks: entry.isAbsent ? 0 : Number(entry.marks || 0),
+        marks: entry.isAbsent ? 0 : totalMarks,
+        componentMarks,
         isAbsent: entry.isAbsent
       });
       setSavedIds((current) => ({ ...current, [studentId]: true }));
@@ -132,8 +156,15 @@ export function ExamMarksPage() {
         <div>
           <h2 style={{ margin: 0 }}>Enter Marks</h2>
           <div className="muted" style={{ marginTop: 6 }}>
-            {exam ? `${exam.title} · ${exam.subject} · Class ${exam.classLevel} · Max ${exam.maxMarks}` : "Loading exam..."}
+            {exam
+              ? `${exam.title} · ${exam.examType === "ENTRANCE" ? "Entrance Test" : exam.subject} · Class ${exam.classLevel} · Max ${exam.maxMarks}`
+              : "Loading exam..."}
           </div>
+          {exam?.examType === "ENTRANCE" ? (
+            <div className="muted" style={{ marginTop: 6 }}>
+              {(exam.components ?? []).map((component) => `${component.subject}: ${component.maxMarks} max, ${component.passingMarks ?? 0} pass`).join(" · ")}
+            </div>
+          ) : null}
           {exam?.publishedAt ? (
             <div className="muted" style={{ marginTop: 6 }}>
               Published on {new Date(exam.publishedAt).toLocaleDateString()}.
@@ -207,17 +238,19 @@ export function ExamMarksPage() {
                 <tr>
                   <th>Student</th>
                   <th>Absent</th>
-                  <th>Marks</th>
+                  <th>{exam.examType === "ENTRANCE" ? "Subject marks" : "Marks"}</th>
                   <th>Result</th>
                   <th>Save</th>
                 </tr>
               </thead>
               <tbody>
                 {students.map((student) => {
-                  const entry = scores[student._id] ?? { marks: "", isAbsent: false };
-                  const marks = Number(entry.marks || 0);
+                  const entry = scores[student._id] ?? { marks: "", componentMarks: {}, isAbsent: false };
+                  const componentTotal = (exam.components ?? []).reduce((sum, component) => sum + Number(entry.componentMarks[component.subject] || 0), 0);
+                  const marks = exam.examType === "ENTRANCE" ? componentTotal : Number(entry.marks || 0);
                   const percent = exam && !entry.isAbsent ? Math.round((marks / exam.maxMarks) * 100) : 0;
                   const isSaved = savedIds[student._id] === true;
+                  const componentOverMax = (exam.components ?? []).some((component) => Number(entry.componentMarks[component.subject] || 0) > component.maxMarks);
 
                   return (
                     <tr key={student._id}>
@@ -235,20 +268,43 @@ export function ExamMarksPage() {
                         </label>
                       </td>
                       <td>
-                        <input
-                          className="input"
-                          style={{ width: 110 }}
-                          disabled={entry.isAbsent}
-                          value={entry.marks}
-                          onChange={(e) => updateScore(student._id, { marks: e.target.value.replace(/[^0-9]/g, "") })}
-                          placeholder="0"
-                        />
+                        {exam.examType === "ENTRANCE" ? (
+                          <div style={{ display: "grid", gap: 8 }}>
+                            {(exam.components ?? []).map((component) => (
+                              <label key={component.subject} className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                                <span className="muted" style={{ width: 130 }}>{component.subject}</span>
+                                <input
+                                  className="input"
+                                  style={{ width: 100 }}
+                                  disabled={entry.isAbsent}
+                                  value={entry.componentMarks[component.subject] ?? ""}
+                                  onChange={(event) => updateScore(student._id, {
+                                    componentMarks: {
+                                      [component.subject]: event.target.value.replace(/[^0-9]/g, "")
+                                    }
+                                  })}
+                                  placeholder={`/${component.maxMarks}`}
+                                />
+                                <span className="muted">/ {component.maxMarks} · pass {component.passingMarks ?? 0}</span>
+                              </label>
+                            ))}
+                          </div>
+                        ) : (
+                          <input
+                            className="input"
+                            style={{ width: 110 }}
+                            disabled={entry.isAbsent}
+                            value={entry.marks}
+                            onChange={(e) => updateScore(student._id, { marks: e.target.value.replace(/[^0-9]/g, "") })}
+                            placeholder="0"
+                          />
+                        )}
                       </td>
-                      <td className="muted">{entry.isAbsent ? "Absent" : `${percent}%`}</td>
+                      <td className="muted">{entry.isAbsent ? "Absent" : `${marks}/${exam.maxMarks} · ${percent}%`}</td>
                       <td>
                         <button
                           className={isSaved ? "btn" : "btn primary"}
-                          disabled={savingId === student._id || (!entry.isAbsent && Number(entry.marks || -1) > exam.maxMarks)}
+                          disabled={savingId === student._id || (!entry.isAbsent && (marks > exam.maxMarks || componentOverMax))}
                           onClick={() => saveStudent(student._id)}
                         >
                           {savingId === student._id ? "Saving..." : isSaved ? "Saved" : "Save"}

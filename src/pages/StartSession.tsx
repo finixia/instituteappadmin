@@ -75,8 +75,10 @@ export function StartSessionPage() {
         const remaining = current.filter((record) => record.studentId !== studentId);
         return [...remaining, next];
       });
+      return true;
     } catch (e: any) {
       setError(e?.response?.data?.error?.message ?? e?.message ?? "Failed to mark attendance");
+      return false;
     } finally {
       setSavingId(null);
     }
@@ -115,9 +117,29 @@ export function StartSessionPage() {
       }
 
       setRecognizedStudentId(match.studentId);
-      setRecognitionMessage(
-        `Recognized ${match.firstName} ${match.lastName ?? ""} (${Math.round(match.confidence)}%)`
-      );
+      const studentName = `${match.firstName} ${match.lastName ?? ""}`.trim();
+      if (String(match.classLevel) !== String(classLevel)) {
+        setRecognitionMessage(`${studentName} was recognized, but is not in Class ${classLevel}.`);
+        return;
+      }
+
+      const enrolledStudent = students.find((student) => student._id === match.studentId);
+      if (!enrolledStudent || !(enrolledStudent.subjects ?? []).includes(subject)) {
+        setRecognitionMessage(`${studentName} was recognized, but is not enrolled for ${subject}.`);
+        return;
+      }
+
+      const existingRecord = records.find((record) => record.studentId === match.studentId);
+      if (existingRecord?.status === "PRESENT") {
+        setRecognitionMessage(`${studentName} is already marked present.`);
+        return;
+      }
+
+      setRecognitionMessage(`Recognized ${studentName}. Marking present...`);
+      const marked = await mark(match.studentId, "PRESENT");
+      if (marked) {
+        setRecognitionMessage(`Recognized ${studentName}. Marked present automatically.`);
+      }
     } catch (e: any) {
       setRecognitionMessage(e?.response?.data?.error?.message ?? e?.message ?? "Recognition failed.");
       setRecognizedStudentId("");
@@ -152,7 +174,6 @@ export function StartSessionPage() {
 
   if (mode === "FACE") {
     const recognizedStudent = students.find((student) => student._id === recognizedStudentId);
-    const pendingStudents = students.filter((student) => !records.some((record) => record.studentId === student._id));
 
     return (
       <div>
@@ -171,7 +192,7 @@ export function StartSessionPage() {
               Scan any student for Class {classLevel} · {subject}
             </div>
             <div className="muted" style={{ marginBottom: 24 }}>
-              Face mode recognizes students in any order. Once a student is identified, select them and mark present.
+              Face mode recognizes students in any order. Verified enrolled students are marked present automatically after scanning.
             </div>
 
             <div
@@ -202,10 +223,10 @@ export function StartSessionPage() {
             <div className="row" style={{ justifyContent: "center", gap: 12, marginBottom: 18 }}>
               <button
                 className="btn primary"
-                disabled={recognitionLoading}
+                disabled={recognitionLoading || Boolean(savingId)}
                 onClick={captureAndRecognize}
               >
-                {recognitionLoading ? "Scanning..." : "Scan Student"}
+                {recognitionLoading ? "Scanning..." : savingId ? "Marking..." : "Scan & Auto Mark"}
               </button>
               <button
                 className="btn"
@@ -224,42 +245,6 @@ export function StartSessionPage() {
                 {recognitionMessage}
               </div>
             ) : null}
-
-            <div style={{ marginBottom: 20, width: "100%", maxWidth: 420, marginLeft: "auto", marginRight: "auto" }}>
-              <div className="muted" style={{ marginBottom: 6 }}>
-                Recognized student
-              </div>
-              <select
-                className="select"
-                value={recognizedStudentId}
-                onChange={(e) => setRecognizedStudentId(e.target.value)}
-                style={{ width: "100%" }}
-              >
-                <option value="">Choose a recognized student</option>
-                {pendingStudents.map((student) => (
-                  <option key={student._id} value={student._id}>
-                    {student.firstName} {student.lastName ?? ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="row" style={{ justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
-              <button
-                className="btn primary"
-                disabled={!recognizedStudentId || savingId === recognizedStudentId}
-                onClick={() => mark(recognizedStudentId, "PRESENT")}
-              >
-                {savingId === recognizedStudentId ? "Saving..." : "Mark as Present"}
-              </button>
-              <button
-                className="btn danger"
-                disabled={!recognizedStudentId || savingId === recognizedStudentId}
-                onClick={() => mark(recognizedStudentId, "ABSENT")}
-              >
-                {savingId === recognizedStudentId ? "Saving..." : "Mark Absent"}
-              </button>
-            </div>
 
             {recognizedStudent && (
               <div style={{ marginTop: 16 }}>

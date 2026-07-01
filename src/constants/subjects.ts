@@ -3,6 +3,7 @@ export const SUBJECT_OPTIONS = [
   "English Grammar",
   "Hindi",
   "Marathi",
+  "Mathematics",
   "Algebra",
   "Geometry",
   "Reasoning",
