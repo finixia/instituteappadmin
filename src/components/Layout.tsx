@@ -1,6 +1,7 @@
 import React from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuthStore } from "../store/auth";
+import appIcon from "../assets/app-icon.png";
 
 const navItems = [
   { to: "/admin", label: "Dashboard", icon: "DB" },
@@ -24,6 +25,14 @@ export function Layout() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
+        <div className="sidebar-brand">
+          <img src={appIcon} alt="SP ICSE Foundation logo" />
+          <div>
+            <strong>SP ICSE Foundation</strong>
+            <span>Admin Console</span>
+          </div>
+        </div>
+
         <nav className="sidebar-nav">
           {navItems.map((item) => (
             <Nav key={item.to} to={item.to} icon={item.icon}>

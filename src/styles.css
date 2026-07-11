@@ -69,6 +69,41 @@ a {
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.02);
 }
 
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+  padding: 10px;
+  color: var(--sidebar-text);
+}
+
+.sidebar-brand img,
+.login-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  object-fit: cover;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+
+.sidebar-brand strong,
+.sidebar-brand span {
+  display: block;
+}
+
+.sidebar-brand strong {
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.sidebar-brand span {
+  margin-top: 3px;
+  color: var(--sidebar-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .sidebar-nav {
   display: grid;
   gap: 8px;

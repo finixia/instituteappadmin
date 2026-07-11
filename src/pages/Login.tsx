@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { api } from "../api/client";
 import { useAuthStore } from "../store/auth";
+import appIcon from "../assets/app-icon.png";
 
 export function LoginPage() {
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -51,7 +52,7 @@ export function LoginPage() {
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div className="panel" style={{ width: 420, padding: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-          <div style={{ width: 46, height: 46, borderRadius: 10, background: 'linear-gradient(180deg,#2f5fd7,#1d4ed8)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 900 }}>IA</div>
+          <img className="login-logo" src={appIcon} alt="SP ICSE Foundation logo" />
           <div>
             <h2 style={{ margin: 0 }}>Login</h2>
           </div>
@@ -102,4 +103,3 @@ export function LoginPage() {
     </div>
   );
 }
-
